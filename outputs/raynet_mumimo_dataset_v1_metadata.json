@@ -1,0 +1,54 @@
+{
+  "description": "RayNet-like two-user MU-MIMO analog beam/codebook selection dataset.",
+  "feature_columns": [
+    "u1_distance_m",
+    "u1_angle_deg",
+    "u1_required_rate_bpshz",
+    "u1_pilot_snr_db",
+    "u2_distance_m",
+    "u2_angle_deg",
+    "u2_required_rate_bpshz",
+    "u2_pilot_snr_db"
+  ],
+  "beam_label_columns": [
+    "tx0_beam_label",
+    "tx1_beam_label"
+  ],
+  "codebook_label_columns": [
+    "tx0_codebook_label",
+    "tx1_codebook_label"
+  ],
+  "config": {
+    "num_samples": 50,
+    "seed": 7,
+    "frequency_hz": 60000000000.0,
+    "tx_position": [
+      0.0,
+      0.0,
+      1.5
+    ],
+    "rx_height_m": 1.5,
+    "user_distance_min_m": 2.0,
+    "user_distance_max_m": 10.0,
+    "user_angle_min_deg": -55.0,
+    "user_angle_max_deg": 55.0,
+    "min_user_angular_separation_deg": 8.0,
+    "num_beams": 8,
+    "num_codebooks": 32,
+    "beam_angle_min_deg": -52.5,
+    "beam_angle_max_deg": 52.5,
+    "codebook_refinement_min_deg": -7.0,
+    "codebook_refinement_max_deg": 7.0,
+    "beam_shape_exponent": 12,
+    "beam_gain_floor_db": -30.0,
+    "noise_power_linear": 1e-10,
+    "interference_factor": 1.0,
+    "required_rate_min_bpshz": 1.0,
+    "required_rate_max_bpshz": 5.0,
+    "qos_penalty_weight": 2.0,
+    "output_csv": "outputs/raynet_mumimo_dataset_v1.csv",
+    "output_npz": "outputs/raynet_mumimo_dataset_v1.npz",
+    "output_metadata": "outputs/raynet_mumimo_dataset_v1_metadata.json"
+  },
+  "note": "This V1 dataset uses Sionna RT for channel/path generation and an analytical beam/codebook gain model for labels. Replace the analytical gain model with measured/simulated RayNet beam patterns in V2."
+}
