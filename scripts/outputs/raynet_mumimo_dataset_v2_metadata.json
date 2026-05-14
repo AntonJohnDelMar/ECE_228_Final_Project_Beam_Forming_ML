@@ -1,0 +1,81 @@
+{
+  "description": "RayNet-like V2 two-user MU-MIMO sector/codebook dataset.",
+  "feature_columns": [
+    "u1_distance_m",
+    "u1_angle_deg",
+    "u1_required_rate_bpshz",
+    "u1_pilot_snr_db",
+    "u2_distance_m",
+    "u2_angle_deg",
+    "u2_required_rate_bpshz",
+    "u2_pilot_snr_db"
+  ],
+  "sector_label_columns": [
+    "tx0_sector_label",
+    "tx1_sector_label"
+  ],
+  "codebook_label_columns": [
+    "tx0_codebook_label",
+    "tx1_codebook_label"
+  ],
+  "notes": [
+    "Azimuth-only sector and codebook refinement model.",
+    "Sector index 0 is anchored to boresight by measurement.",
+    "Each codebook entry is represented as a per-element relative phase vector.",
+    "The codebook count is configurable and is not treated as a fixed hardware primitive.",
+    "The Sionna RT scene provides channel/path power; the RayNet-like array-factor model scores sector/codebook configurations.",
+    "Samples are generated class-first and retained only when the target class passes SINR and near-best checks."
+  ],
+  "config": {
+    "seed": 11,
+    "frequency_hz": 60480000000.0,
+    "tx_position": [
+      0.0,
+      0.0,
+      1.5
+    ],
+    "rx_height_m": 1.5,
+    "user_distance_min_m": 2.0,
+    "user_distance_max_m": 10.0,
+    "user_angle_min_deg": -55.0,
+    "user_angle_max_deg": 55.0,
+    "min_user_angular_separation_deg": 8.0,
+    "sector_angles_deg": [
+      0.0,
+      15.0,
+      30.0,
+      45.0,
+      60.0,
+      -45.0,
+      -30.0,
+      -15.0
+    ],
+    "num_codebooks": 1,
+    "refinement_min_deg": -5.0,
+    "refinement_max_deg": 5.0,
+    "array_num_rows": 8,
+    "array_num_cols": 8,
+    "element_spacing_x_m": 0.002671,
+    "element_spacing_y_m": 0.0029,
+    "quantize_phase_bits": null,
+    "noise_power_linear": 1e-10,
+    "interference_factor": 1.0,
+    "required_rate_min_bpshz": 1.0,
+    "required_rate_max_bpshz": 5.0,
+    "samples_per_class": 2,
+    "max_attempts_per_class": 500,
+    "max_joint_classes": 128,
+    "class_angle_jitter_deg": 4.0,
+    "min_sinr_db": -10.0,
+    "near_best_margin_bpshz": 0.25,
+    "qos_penalty_weight": 2.0,
+    "max_depth": 1,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": false,
+    "output_csv": "outputs/raynet_mumimo_dataset_v2.csv",
+    "output_npz": "outputs/raynet_mumimo_dataset_v2.npz",
+    "output_metadata": "outputs/raynet_mumimo_dataset_v2_metadata.json"
+  }
+}

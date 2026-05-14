@@ -11,6 +11,11 @@ import sionna.rt
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, PathSolver
 
 
+#ECE228 Dataset Generation Script for Raynet MLP
+#Joshua Creasman, Anton John Delmar
+#5/13/26
+
+
 C0 = 299_792_458.0
 
 
@@ -33,9 +38,9 @@ CONFIG = {
 
     "sector_angles_deg": [0.0, 15.0, 30.0, 45.0, 60.0, -45.0, -30.0, -15.0],
 
-    "num_codebooks": 4,
+    "num_codebooks": 1,     #delta(theta) = (max deg - min deg) / (num_codebooks - 1)
     "refinement_min_deg": -5.0,
-    "refinement_max_deg": 7.0,
+    "refinement_max_deg": 5.0,
 
     "array_num_rows": 8,
     "array_num_cols": 8,
@@ -47,7 +52,8 @@ CONFIG = {
     "noise_power_linear": 1e-10,
     "interference_factor": 1.0,
 
-    "required_rate_min_bpshz": 1.0,
+    #throughput req
+    "required_rate_min_bpshz": 1.0, #raynet has 2GHz BW. => 1 bps/Hz is 2 Gbps, 5 bps/Hz is 10 Gbps
     "required_rate_max_bpshz": 5.0,
 
     "samples_per_class": 2,
@@ -56,16 +62,19 @@ CONFIG = {
 
     "class_angle_jitter_deg": 4.0,
 
-    "min_sinr_db": -3.0,
+    #SNR
+    "min_sinr_db": -10.0,
     "near_best_margin_bpshz": 0.25,
     "qos_penalty_weight": 2.0,
 
+    #Sionna Settings
     "max_depth": 1,
     "los": True,
     "specular_reflection": True,
     "diffuse_reflection": False,
     "refraction": False,
 
+    #output names
     "output_csv": "outputs/raynet_mumimo_dataset_v2.csv",
     "output_npz": "outputs/raynet_mumimo_dataset_v2.npz",
     "output_metadata": "outputs/raynet_mumimo_dataset_v2_metadata.json",
@@ -563,8 +572,8 @@ def main():
 
         while kept < CONFIG["samples_per_class"] and attempts < CONFIG["max_attempts_per_class"]:
             attempts += 1
-            print(f"Generating Valid Samples for class {target_class_id:04d}")
             
+
             users = sample_two_users_for_target_class(
                 rng,
                 target_tx0["target_angle_deg"],
