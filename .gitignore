@@ -1,9 +1,14 @@
 # Virtual environments 
 .venv 
 
+
 #Sionna RT GUI
 .polyscope.ini
 imgui.ini
 
 # Cache 
 .ipynb_checkpoints
+
+#outputs
+.csv
+.npz

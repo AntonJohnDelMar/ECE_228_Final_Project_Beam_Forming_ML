@@ -186,7 +186,7 @@ def main():
 
     ax.set_xlabel("x-position [m]")
     ax.set_ylabel("y-position [m]")
-    ax.set_title("RayNet MU-MIMO Dataset Sample Visualizer")
+    ax.set_title("Raynet Dataset Visualization")
     ax.axis("equal")
     ax.grid(True)
     ax.legend(loc="upper left")
