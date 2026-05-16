@@ -15,6 +15,7 @@ CONFIG = {
     "seed": 21,
 
     "frequency_hz": 60e9,
+    "k_B": 1.380649e-23,
 
     "tx_center_position": [0.0, 0.0, 1.5],
     "tx_spacing_m": 0.02,
@@ -53,7 +54,12 @@ CONFIG = {
     "beam_sidelobe_floor_db": -30.0,
     "beam_peak_gain_db": 0.0,
 
-    "noise_power_linear": 1e-10,
+    "bandwidth_hz": 2e9,
+    "noise_figure_db": 7.0,
+    "temperature_k": 290.0,
+    "tx0_power_dbm": 0.0,
+    "tx1_power_dbm": 0.0,
+
     "required_rate_min_bpshz": 1.0,
     "required_rate_max_bpshz": 5.0,
 
@@ -73,6 +79,16 @@ CONFIG = {
     "output_metadata": "outputs/dataset_v3_metadata.json",
 }
 
+def dbm_to_watts(dbm):
+    return 1e-3 * 10.0 ** (dbm / 10.0)
+
+def thermal_noise_watts():
+    k_B = 1.380649e-23
+    temperature = CONFIG["temperature_k"]
+    bandwidth = CONFIG["bandwidth_hz"]
+    noise_figure_linear = 10.0 ** (CONFIG["noise_figure_db"] / 10.0)
+
+    return k_B * temperature * bandwidth * noise_figure_linear
 
 def setup_scene():
     scene = load_scene(sionna.rt.scene.simple_reflector)
@@ -353,6 +369,9 @@ def beam_gain_linear(user_angle_deg, target_angles_deg):
 def score_all_joint_configs(users, links, candidates):
     target_angles = candidates["target_angle_deg"].to_numpy()
 
+    p_tx0 = dbm_to_watts(CONFIG["tx0_power_dbm"])
+    p_tx1 = dbm_to_watts(CONFIG["tx1_power_dbm"])
+
     gain_tx0_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles)
     gain_tx0_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles)
 
@@ -364,13 +383,13 @@ def score_all_joint_configs(users, links, candidates):
     h21 = links["h21"]["power_linear"]
     h22 = links["h22"]["power_linear"]
 
-    noise = CONFIG["noise_power_linear"]
+    noise = thermal_noise_watts()
 
-    desired_u1 = h11 * gain_tx0_to_u1[:, None]
-    interference_u1 = h21 * gain_tx1_to_u1[None, :]
+    desired_u1 = p_tx0 * h11 * gain_tx0_to_u1[:, None]
+    interference_u1 = p_tx1 * h21 * gain_tx1_to_u1[None, :]
 
-    desired_u2 = h22 * gain_tx1_to_u2[None, :]
-    interference_u2 = h12 * gain_tx0_to_u2[:, None]
+    desired_u2 = p_tx1 * h22 * gain_tx1_to_u2[None, :]
+    interference_u2 = p_tx0 * h12 * gain_tx0_to_u2[:, None]
 
     sinr_u1 = desired_u1 / (interference_u1 + noise)
     sinr_u2 = desired_u2 / (interference_u2 + noise)
@@ -482,12 +501,12 @@ def make_row(sample_id, target_class_id, users, links, target_tx0, target_tx1, b
     pilot_snr_u1_linear = max(
         links["h11"]["power_linear"],
         links["h21"]["power_linear"],
-    ) / CONFIG["noise_power_linear"]
+    ) / thermal_noise_watts()
 
     pilot_snr_u2_linear = max(
         links["h12"]["power_linear"],
         links["h22"]["power_linear"],
-    ) / CONFIG["noise_power_linear"]
+    ) / thermal_noise_watts()
 
     return {
         "sample_id": sample_id,

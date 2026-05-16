@@ -32,6 +32,7 @@
   "config": {
     "seed": 21,
     "frequency_hz": 60000000000.0,
+    "k_B": 1.380649e-23,
     "tx_center_position": [
       0.0,
       0.0,
@@ -55,8 +56,8 @@
       -15.0
     ],
     "num_codebooks": 1,
-    "refinement_min_deg": -6.0,
-    "refinement_max_deg": 6.0,
+    "refinement_min_deg": -0.0,
+    "refinement_max_deg": 0.0,
     "filter_target_angles_to_user_fov": true,
     "class_angle_jitter_deg": 4.0,
     "samples_per_class": 1,
@@ -65,7 +66,11 @@
     "beam_3db_width_deg": 15.0,
     "beam_sidelobe_floor_db": -30.0,
     "beam_peak_gain_db": 0.0,
-    "noise_power_linear": 1e-10,
+    "bandwidth_hz": 2000000000.0,
+    "noise_figure_db": 7.0,
+    "temperature_k": 290.0,
+    "tx0_power_dbm": 0.0,
+    "tx1_power_dbm": 0.0,
     "required_rate_min_bpshz": 1.0,
     "required_rate_max_bpshz": 5.0,
     "min_sinr_db": -3.0,
@@ -75,8 +80,8 @@
     "max_depth": 1,
     "los": true,
     "specular_reflection": true,
-    "diffuse_reflection": false,
-    "refraction": false,
+    "diffuse_reflection": true,
+    "refraction": true,
     "output_csv": "outputs/dataset_v3.csv",
     "output_npz": "outputs/dataset_v3.npz",
     "output_metadata": "outputs/dataset_v3_metadata.json"
