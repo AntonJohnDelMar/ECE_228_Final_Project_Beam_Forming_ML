@@ -719,7 +719,7 @@ def main():
     )
 
     metadata = {
-        "description": "RayNet-like V2 two-user MU-MIMO sector/codebook dataset.",
+        "description": "Raynet Dataset",
         "feature_columns": feature_cols,
         "sector_label_columns": ["tx0_sector_label", "tx1_sector_label"],
         "codebook_label_columns": ["tx0_codebook_label", "tx1_codebook_label"],

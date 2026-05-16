@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-df = pd.read_csv("outputs/raynet_mumimo_dataset_v2.csv")
+df = pd.read_csv("outputs/dataset_v3.csv")
 
 plt.figure()
 plt.scatter(df["u1_x"], df["u1_y"], c=df["tx0_sector_label"])

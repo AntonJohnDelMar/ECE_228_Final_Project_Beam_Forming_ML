@@ -4,8 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-CSV_PATH = "outputs/raynet_mumimo_dataset_v2.csv"
-METADATA_PATH = "outputs/raynet_mumimo_dataset_v2_metadata.json"
+CSV_PATH = "outputs/dataset_v3.csv"
+METADATA_PATH = "outputs/dataset_v3_metadata.json"
 
 SAMPLE_ID = 0
 USE_RANDOM_SAMPLE = False

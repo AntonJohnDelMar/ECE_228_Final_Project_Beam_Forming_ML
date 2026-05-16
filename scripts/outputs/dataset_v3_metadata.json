@@ -1,0 +1,84 @@
+{
+  "description": "RayNet Dataset Generation V3",
+  "feature_columns": [
+    "u1_distance_m",
+    "u1_angle_deg",
+    "u1_required_rate_bpshz",
+    "u1_pilot_snr_db",
+    "u2_distance_m",
+    "u2_angle_deg",
+    "u2_required_rate_bpshz",
+    "u2_pilot_snr_db"
+  ],
+  "sector_label_columns": [
+    "tx0_sector_label",
+    "tx1_sector_label"
+  ],
+  "codebook_label_columns": [
+    "tx0_codebook_label",
+    "tx1_codebook_label"
+  ],
+  "notes": [
+    "Class-first generation",
+    "Two physical TX positions are modeled in Sionna RT.",
+    "Four links are traced per candidate sample: TX0-U1, TX0-U2, TX1-U1, TX1-U2.",
+    "Users are placed in the x-y plane at fixed z; azimuth is measured from +x toward +y.",
+    "Sector index 0 is anchored to boresight.",
+    "Codebook index represents an azimuth refinement around the sector direction.",
+    "Codebook count is configurable and not treated as a fixed hardware primitive.",
+    "Sionna RT provides link/path power; sector/codebook beam scoring is analytical.",
+    "A sample is kept only if the target class passes SINR checks and is near-best."
+  ],
+  "config": {
+    "seed": 21,
+    "frequency_hz": 60000000000.0,
+    "tx_center_position": [
+      0.0,
+      0.0,
+      1.5
+    ],
+    "tx_spacing_m": 0.02,
+    "rx_height_m": 1.5,
+    "user_distance_min_m": 2.0,
+    "user_distance_max_m": 10.0,
+    "user_angle_min_deg": -60.0,
+    "user_angle_max_deg": 60.0,
+    "min_user_angular_separation_deg": 8.0,
+    "sector_angles_deg": [
+      0.0,
+      15.0,
+      30.0,
+      45.0,
+      60.0,
+      -45.0,
+      -30.0,
+      -15.0
+    ],
+    "num_codebooks": 1,
+    "refinement_min_deg": -6.0,
+    "refinement_max_deg": 6.0,
+    "filter_target_angles_to_user_fov": true,
+    "class_angle_jitter_deg": 4.0,
+    "samples_per_class": 1,
+    "max_attempts_per_class": 300,
+    "max_joint_classes": 64,
+    "beam_3db_width_deg": 15.0,
+    "beam_sidelobe_floor_db": -30.0,
+    "beam_peak_gain_db": 0.0,
+    "noise_power_linear": 1e-10,
+    "required_rate_min_bpshz": 1.0,
+    "required_rate_max_bpshz": 5.0,
+    "min_sinr_db": -3.0,
+    "require_rate_targets": false,
+    "near_best_margin_bpshz": 0.25,
+    "qos_penalty_weight": 2.0,
+    "max_depth": 1,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": false,
+    "output_csv": "outputs/dataset_v3.csv",
+    "output_npz": "outputs/dataset_v3.npz",
+    "output_metadata": "outputs/dataset_v3_metadata.json"
+  }
+}

@@ -1,0 +1,724 @@
+import json
+import os
+
+import mitsuba as mi
+mi.set_variant("cuda_ad_mono_polarized")
+
+import numpy as np
+import pandas as pd
+
+import sionna.rt
+from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, PathSolver
+
+
+CONFIG = {
+    "seed": 21,
+
+    "frequency_hz": 60e9,
+
+    "tx_center_position": [0.0, 0.0, 1.5],
+    "tx_spacing_m": 0.02,
+
+    "rx_height_m": 1.5,
+
+    "user_distance_min_m": 2.0,
+    "user_distance_max_m": 10.0,
+    "user_angle_min_deg": -60.0,
+    "user_angle_max_deg": 60.0,
+    "min_user_angular_separation_deg": 8.0,
+
+    "sector_angles_deg": [
+        0.0,
+        15.0,
+        30.0,
+        45.0,
+        60.0,
+        -45.0,
+        -30.0,
+        -15.0,
+    ],
+
+    "num_codebooks": 1,
+    "refinement_min_deg": -6.0,
+    "refinement_max_deg": 6.0,
+    "filter_target_angles_to_user_fov": True,
+
+    "class_angle_jitter_deg": 4.0,
+
+    "samples_per_class": 1,
+    "max_attempts_per_class": 300,
+    "max_joint_classes": 64,
+
+    "beam_3db_width_deg": 15.0,
+    "beam_sidelobe_floor_db": -30.0,
+    "beam_peak_gain_db": 0.0,
+
+    "noise_power_linear": 1e-10,
+    "required_rate_min_bpshz": 1.0,
+    "required_rate_max_bpshz": 5.0,
+
+    "min_sinr_db": -3.0,
+    "require_rate_targets": False,
+    "near_best_margin_bpshz": 0.25,
+    "qos_penalty_weight": 2.0,
+
+    "max_depth": 1,
+    "los": True,
+    "specular_reflection": True,
+    "diffuse_reflection": False,
+    "refraction": False,
+
+    "output_csv": "outputs/dataset_v3.csv",
+    "output_npz": "outputs/dataset_v3.npz",
+    "output_metadata": "outputs/dataset_v3_metadata.json",
+}
+
+
+def setup_scene():
+    scene = load_scene(sionna.rt.scene.simple_reflector)
+    scene.frequency = CONFIG["frequency_hz"]
+
+    scene.tx_array = PlanarArray(
+        num_rows=1,
+        num_cols=1,
+        vertical_spacing=0.5,
+        horizontal_spacing=0.5,
+        pattern="iso",
+        polarization="V",
+    )
+
+    scene.rx_array = PlanarArray(
+        num_rows=1,
+        num_cols=1,
+        vertical_spacing=0.5,
+        horizontal_spacing=0.5,
+        pattern="iso",
+        polarization="V",
+    )
+
+    return scene
+
+
+def make_tx_positions():
+    center = np.array(CONFIG["tx_center_position"], dtype=float)
+    spacing = CONFIG["tx_spacing_m"]
+
+    tx0_pos = center + np.array([0.0, -spacing / 2.0, 0.0])
+    tx1_pos = center + np.array([0.0, spacing / 2.0, 0.0])
+
+    return tx0_pos, tx1_pos
+
+
+def make_candidate_configs():
+    sector_angles = np.array(CONFIG["sector_angles_deg"], dtype=float)
+
+    refinement_angles = np.linspace(
+        CONFIG["refinement_min_deg"],
+        CONFIG["refinement_max_deg"],
+        CONFIG["num_codebooks"],
+    )
+
+    candidates = []
+
+    for sector_idx, sector_angle in enumerate(sector_angles):
+        for codebook_idx, refinement_angle in enumerate(refinement_angles):
+            target_angle = sector_angle + refinement_angle
+
+            if CONFIG["filter_target_angles_to_user_fov"]:
+                if target_angle < CONFIG["user_angle_min_deg"]:
+                    continue
+                if target_angle > CONFIG["user_angle_max_deg"]:
+                    continue
+
+            candidates.append({
+                "candidate_idx": len(candidates),
+                "sector_idx": int(sector_idx),
+                "codebook_idx": int(codebook_idx),
+                "sector_angle_deg": float(sector_angle),
+                "refinement_angle_deg": float(refinement_angle),
+                "target_angle_deg": float(target_angle),
+            })
+
+    return pd.DataFrame(candidates)
+
+
+def make_joint_class_list(rng, num_candidates):
+    tx0_idx, tx1_idx = np.meshgrid(
+        np.arange(num_candidates),
+        np.arange(num_candidates),
+        indexing="ij",
+    )
+
+    joint_classes = np.column_stack([
+        tx0_idx.ravel(),
+        tx1_idx.ravel(),
+    ])
+
+    max_joint_classes = CONFIG["max_joint_classes"]
+
+    if max_joint_classes is not None and max_joint_classes < len(joint_classes):
+        selected = rng.choice(
+            len(joint_classes),
+            size=max_joint_classes,
+            replace=False,
+        )
+        joint_classes = joint_classes[selected]
+
+    return joint_classes
+
+
+def sample_user_near_angle(rng, center_angle_deg):
+    angle = rng.uniform(
+        center_angle_deg - CONFIG["class_angle_jitter_deg"],
+        center_angle_deg + CONFIG["class_angle_jitter_deg"],
+    )
+
+    angle = float(np.clip(
+        angle,
+        CONFIG["user_angle_min_deg"],
+        CONFIG["user_angle_max_deg"],
+    ))
+
+    distance = rng.uniform(
+        CONFIG["user_distance_min_m"],
+        CONFIG["user_distance_max_m"],
+    )
+
+    angle_rad = np.deg2rad(angle)
+
+    x = distance * np.cos(angle_rad)
+    y = distance * np.sin(angle_rad)
+    z = CONFIG["rx_height_m"]
+
+    return np.array([x, y, z], dtype=float), float(distance), angle
+
+
+def sample_two_users_for_target_class(rng, tx0_target_angle, tx1_target_angle):
+    for _ in range(200):
+        u1_pos, u1_dist, u1_angle = sample_user_near_angle(rng, tx0_target_angle)
+        u2_pos, u2_dist, u2_angle = sample_user_near_angle(rng, tx1_target_angle)
+
+        angular_sep = abs(u1_angle - u2_angle)
+
+        if angular_sep >= CONFIG["min_user_angular_separation_deg"]:
+            return {
+                "u1_pos": u1_pos,
+                "u1_distance_m": u1_dist,
+                "u1_angle_deg": u1_angle,
+                "u2_pos": u2_pos,
+                "u2_distance_m": u2_dist,
+                "u2_angle_deg": u2_angle,
+                "angular_separation_deg": angular_sep,
+            }
+
+    return None
+
+
+def trace_one_link(scene, p_solver, tx_position, rx_position, seed):
+    tx_name = "tx_tmp"
+    rx_name = "rx_tmp"
+
+    tx = Transmitter(
+        name=tx_name,
+        position=tx_position.tolist(),
+    )
+
+    rx = Receiver(
+        name=rx_name,
+        position=rx_position.tolist(),
+    )
+
+    scene.add(tx)
+    scene.add(rx)
+
+    try:
+        paths = p_solver(
+            scene=scene,
+            max_depth=CONFIG["max_depth"],
+            los=CONFIG["los"],
+            specular_reflection=CONFIG["specular_reflection"],
+            diffuse_reflection=CONFIG["diffuse_reflection"],
+            refraction=CONFIG["refraction"],
+            synthetic_array=True,
+            seed=seed,
+        )
+
+        a, tau = paths.cir(normalize_delays=False, out_type="numpy")
+
+    finally:
+        scene.remove(tx_name)
+        scene.remove(rx_name)
+
+    return a, tau
+
+
+def extract_link_features(a, tau):
+    a_flat = np.asarray(a).flatten()
+    tau_flat = np.asarray(tau).flatten()
+
+    mags = np.abs(a_flat)
+    valid = np.isfinite(mags) & np.isfinite(tau_flat)
+
+    mags = mags[valid]
+    tau_flat = tau_flat[valid]
+
+    if len(mags) == 0:
+        return {
+            "num_paths": 0,
+            "power_linear": 0.0,
+            "power_db": -300.0,
+            "strongest_delay_ns": np.nan,
+            "rms_delay_spread_ns": np.nan,
+        }
+
+    powers = mags**2
+    total_power = float(np.sum(powers))
+    total_power_db = float(10.0 * np.log10(total_power + 1e-30))
+
+    strongest_idx = int(np.argmax(mags))
+    strongest_delay_ns = float(tau_flat[strongest_idx] / 1e-9)
+
+    mean_delay = np.sum(powers * tau_flat) / (total_power + 1e-30)
+    rms_delay = np.sqrt(
+        np.sum(powers * (tau_flat - mean_delay) ** 2) / (total_power + 1e-30)
+    )
+
+    return {
+        "num_paths": int(len(mags)),
+        "power_linear": total_power,
+        "power_db": total_power_db,
+        "strongest_delay_ns": strongest_delay_ns,
+        "rms_delay_spread_ns": float(rms_delay / 1e-9),
+    }
+
+
+def trace_four_links(scene, p_solver, tx0_pos, tx1_pos, users, sample_seed):
+    a11, tau11 = trace_one_link(
+        scene=scene,
+        p_solver=p_solver,
+        tx_position=tx0_pos,
+        rx_position=users["u1_pos"],
+        seed=sample_seed + 11,
+    )
+
+    a12, tau12 = trace_one_link(
+        scene=scene,
+        p_solver=p_solver,
+        tx_position=tx0_pos,
+        rx_position=users["u2_pos"],
+        seed=sample_seed + 12,
+    )
+
+    a21, tau21 = trace_one_link(
+        scene=scene,
+        p_solver=p_solver,
+        tx_position=tx1_pos,
+        rx_position=users["u1_pos"],
+        seed=sample_seed + 21,
+    )
+
+    a22, tau22 = trace_one_link(
+        scene=scene,
+        p_solver=p_solver,
+        tx_position=tx1_pos,
+        rx_position=users["u2_pos"],
+        seed=sample_seed + 22,
+    )
+
+    return {
+        "h11": extract_link_features(a11, tau11),
+        "h12": extract_link_features(a12, tau12),
+        "h21": extract_link_features(a21, tau21),
+        "h22": extract_link_features(a22, tau22),
+    }
+
+
+def beam_gain_linear(user_angle_deg, target_angles_deg):
+    angle_error = user_angle_deg - target_angles_deg
+
+    beam_3db_width = CONFIG["beam_3db_width_deg"]
+    peak_gain_linear = 10.0 ** (CONFIG["beam_peak_gain_db"] / 10.0)
+    floor_linear = 10.0 ** (CONFIG["beam_sidelobe_floor_db"] / 10.0)
+
+    relative_gain = np.exp(
+        -4.0 * np.log(2.0) * (angle_error / beam_3db_width) ** 2
+    )
+
+    gain = peak_gain_linear * relative_gain
+    gain = np.maximum(gain, peak_gain_linear * floor_linear)
+
+    return gain
+
+
+def score_all_joint_configs(users, links, candidates):
+    target_angles = candidates["target_angle_deg"].to_numpy()
+
+    gain_tx0_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles)
+    gain_tx0_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles)
+
+    gain_tx1_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles)
+    gain_tx1_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles)
+
+    h11 = links["h11"]["power_linear"]
+    h12 = links["h12"]["power_linear"]
+    h21 = links["h21"]["power_linear"]
+    h22 = links["h22"]["power_linear"]
+
+    noise = CONFIG["noise_power_linear"]
+
+    desired_u1 = h11 * gain_tx0_to_u1[:, None]
+    interference_u1 = h21 * gain_tx1_to_u1[None, :]
+
+    desired_u2 = h22 * gain_tx1_to_u2[None, :]
+    interference_u2 = h12 * gain_tx0_to_u2[:, None]
+
+    sinr_u1 = desired_u1 / (interference_u1 + noise)
+    sinr_u2 = desired_u2 / (interference_u2 + noise)
+
+    rate_u1 = np.log2(1.0 + sinr_u1)
+    rate_u2 = np.log2(1.0 + sinr_u2)
+
+    deficit_u1 = np.maximum(0.0, users["u1_required_rate_bpshz"] - rate_u1)
+    deficit_u2 = np.maximum(0.0, users["u2_required_rate_bpshz"] - rate_u2)
+
+    score = (
+        rate_u1
+        + rate_u2
+        - CONFIG["qos_penalty_weight"] * (deficit_u1**2 + deficit_u2**2)
+    )
+
+    best_flat_idx = int(np.argmax(score))
+    best_tx0_idx, best_tx1_idx = np.unravel_index(best_flat_idx, score.shape)
+
+    return {
+        "score": score,
+        "sinr_u1": sinr_u1,
+        "sinr_u2": sinr_u2,
+        "rate_u1": rate_u1,
+        "rate_u2": rate_u2,
+        "best_tx0_idx": best_tx0_idx,
+        "best_tx1_idx": best_tx1_idx,
+        "best_score": float(score[best_tx0_idx, best_tx1_idx]),
+    }
+
+
+def target_class_passes(score_data, users, target_tx0_idx, target_tx1_idx):
+    target_score = float(score_data["score"][target_tx0_idx, target_tx1_idx])
+    best_score = float(score_data["best_score"])
+
+    target_sinr_u1 = float(score_data["sinr_u1"][target_tx0_idx, target_tx1_idx])
+    target_sinr_u2 = float(score_data["sinr_u2"][target_tx0_idx, target_tx1_idx])
+
+    target_rate_u1 = float(score_data["rate_u1"][target_tx0_idx, target_tx1_idx])
+    target_rate_u2 = float(score_data["rate_u2"][target_tx0_idx, target_tx1_idx])
+
+    target_sinr_u1_db = 10.0 * np.log10(target_sinr_u1 + 1e-30)
+    target_sinr_u2_db = 10.0 * np.log10(target_sinr_u2 + 1e-30)
+
+    near_best = target_score >= best_score - CONFIG["near_best_margin_bpshz"]
+
+    sinr_ok = (
+        target_sinr_u1_db >= CONFIG["min_sinr_db"]
+        and target_sinr_u2_db >= CONFIG["min_sinr_db"]
+    )
+
+    if CONFIG["require_rate_targets"]:
+        rate_ok = (
+            target_rate_u1 >= users["u1_required_rate_bpshz"]
+            and target_rate_u2 >= users["u2_required_rate_bpshz"]
+        )
+    else:
+        rate_ok = True
+
+    passes = near_best and sinr_ok and rate_ok
+
+    metrics = {
+        "target_score": target_score,
+        "best_score": best_score,
+        "target_is_best": int(
+            target_tx0_idx == score_data["best_tx0_idx"]
+            and target_tx1_idx == score_data["best_tx1_idx"]
+        ),
+        "target_sinr_u1_db": float(target_sinr_u1_db),
+        "target_sinr_u2_db": float(target_sinr_u2_db),
+        "target_rate_u1_bpshz": target_rate_u1,
+        "target_rate_u2_bpshz": target_rate_u2,
+        "target_sum_rate_bpshz": target_rate_u1 + target_rate_u2,
+    }
+
+    return passes, metrics
+
+
+def make_model_arrays(df):
+    feature_cols = [
+        "u1_distance_m",
+        "u1_angle_deg",
+        "u1_required_rate_bpshz",
+        "u1_pilot_snr_db",
+        "u2_distance_m",
+        "u2_angle_deg",
+        "u2_required_rate_bpshz",
+        "u2_pilot_snr_db",
+    ]
+
+    sector_label_cols = [
+        "tx0_sector_label",
+        "tx1_sector_label",
+    ]
+
+    codebook_label_cols = [
+        "tx0_codebook_label",
+        "tx1_codebook_label",
+    ]
+
+    X = df[feature_cols].to_numpy(dtype=np.float32)
+    y_sector = df[sector_label_cols].to_numpy(dtype=np.int64)
+    y_codebook = df[codebook_label_cols].to_numpy(dtype=np.int64)
+
+    return X, y_sector, y_codebook, feature_cols
+
+
+def make_row(sample_id, target_class_id, users, links, target_tx0, target_tx1, best_tx0, best_tx1, metrics, tx0_pos, tx1_pos):
+    pilot_snr_u1_linear = max(
+        links["h11"]["power_linear"],
+        links["h21"]["power_linear"],
+    ) / CONFIG["noise_power_linear"]
+
+    pilot_snr_u2_linear = max(
+        links["h12"]["power_linear"],
+        links["h22"]["power_linear"],
+    ) / CONFIG["noise_power_linear"]
+
+    return {
+        "sample_id": sample_id,
+        "target_class_id": target_class_id,
+
+        "tx0_x": tx0_pos[0],
+        "tx0_y": tx0_pos[1],
+        "tx0_z": tx0_pos[2],
+        "tx1_x": tx1_pos[0],
+        "tx1_y": tx1_pos[1],
+        "tx1_z": tx1_pos[2],
+
+        "u1_x": users["u1_pos"][0],
+        "u1_y": users["u1_pos"][1],
+        "u1_z": users["u1_pos"][2],
+        "u1_distance_m": users["u1_distance_m"],
+        "u1_angle_deg": users["u1_angle_deg"],
+        "u1_required_rate_bpshz": users["u1_required_rate_bpshz"],
+        "u1_pilot_snr_db": 10.0 * np.log10(pilot_snr_u1_linear + 1e-30),
+
+        "u2_x": users["u2_pos"][0],
+        "u2_y": users["u2_pos"][1],
+        "u2_z": users["u2_pos"][2],
+        "u2_distance_m": users["u2_distance_m"],
+        "u2_angle_deg": users["u2_angle_deg"],
+        "u2_required_rate_bpshz": users["u2_required_rate_bpshz"],
+        "u2_pilot_snr_db": 10.0 * np.log10(pilot_snr_u2_linear + 1e-30),
+
+        "angular_separation_deg": users["angular_separation_deg"],
+
+        "h11_power_db": links["h11"]["power_db"],
+        "h12_power_db": links["h12"]["power_db"],
+        "h21_power_db": links["h21"]["power_db"],
+        "h22_power_db": links["h22"]["power_db"],
+
+        "h11_num_paths": links["h11"]["num_paths"],
+        "h12_num_paths": links["h12"]["num_paths"],
+        "h21_num_paths": links["h21"]["num_paths"],
+        "h22_num_paths": links["h22"]["num_paths"],
+
+        "tx0_sector_label": int(target_tx0["sector_idx"]),
+        "tx0_codebook_label": int(target_tx0["codebook_idx"]),
+        "tx0_sector_angle_deg": float(target_tx0["sector_angle_deg"]),
+        "tx0_refinement_angle_deg": float(target_tx0["refinement_angle_deg"]),
+        "tx0_target_angle_deg": float(target_tx0["target_angle_deg"]),
+
+        "tx1_sector_label": int(target_tx1["sector_idx"]),
+        "tx1_codebook_label": int(target_tx1["codebook_idx"]),
+        "tx1_sector_angle_deg": float(target_tx1["sector_angle_deg"]),
+        "tx1_refinement_angle_deg": float(target_tx1["refinement_angle_deg"]),
+        "tx1_target_angle_deg": float(target_tx1["target_angle_deg"]),
+
+        "best_tx0_sector": int(best_tx0["sector_idx"]),
+        "best_tx0_codebook": int(best_tx0["codebook_idx"]),
+        "best_tx0_target_angle_deg": float(best_tx0["target_angle_deg"]),
+
+        "best_tx1_sector": int(best_tx1["sector_idx"]),
+        "best_tx1_codebook": int(best_tx1["codebook_idx"]),
+        "best_tx1_target_angle_deg": float(best_tx1["target_angle_deg"]),
+
+        **metrics,
+    }
+
+
+def main():
+    os.makedirs("outputs", exist_ok=True)
+
+    rng = np.random.default_rng(CONFIG["seed"])
+
+    scene = setup_scene()
+    p_solver = PathSolver()
+
+    tx0_pos, tx1_pos = make_tx_positions()
+
+    candidates = make_candidate_configs()
+    joint_classes = make_joint_class_list(rng, len(candidates))
+
+    rows = []
+    sample_id = 0
+
+    print(f"Single-TX candidates: {len(candidates)}")
+    print(f"Joint classes visited: {len(joint_classes)}")
+    print(f"Samples per class: {CONFIG['samples_per_class']}")
+
+    for target_class_id, (target_tx0_idx, target_tx1_idx) in enumerate(joint_classes):
+        target_tx0_idx = int(target_tx0_idx)
+        target_tx1_idx = int(target_tx1_idx)
+
+        target_tx0 = candidates.iloc[target_tx0_idx]
+        target_tx1 = candidates.iloc[target_tx1_idx]
+
+        kept = 0
+        attempts = 0
+
+        while kept < CONFIG["samples_per_class"] and attempts < CONFIG["max_attempts_per_class"]:
+            attempts += 1
+
+            users = sample_two_users_for_target_class(
+                rng,
+                target_tx0["target_angle_deg"],
+                target_tx1["target_angle_deg"],
+            )
+
+            if users is None:
+                continue
+
+            users["u1_required_rate_bpshz"] = float(rng.uniform(
+                CONFIG["required_rate_min_bpshz"],
+                CONFIG["required_rate_max_bpshz"],
+            ))
+
+            users["u2_required_rate_bpshz"] = float(rng.uniform(
+                CONFIG["required_rate_min_bpshz"],
+                CONFIG["required_rate_max_bpshz"],
+            ))
+
+            links = trace_four_links(
+                scene=scene,
+                p_solver=p_solver,
+                tx0_pos=tx0_pos,
+                tx1_pos=tx1_pos,
+                users=users,
+                sample_seed=100_000 + sample_id + 10_000 * target_class_id,
+            )
+
+            score_data = score_all_joint_configs(
+                users=users,
+                links=links,
+                candidates=candidates,
+            )
+
+            passes, metrics = target_class_passes(
+                score_data=score_data,
+                users=users,
+                target_tx0_idx=target_tx0_idx,
+                target_tx1_idx=target_tx1_idx,
+            )
+
+            if not passes:
+                continue
+
+            best_tx0 = candidates.iloc[score_data["best_tx0_idx"]]
+            best_tx1 = candidates.iloc[score_data["best_tx1_idx"]]
+
+            row = make_row(
+                sample_id=sample_id,
+                target_class_id=target_class_id,
+                users=users,
+                links=links,
+                target_tx0=target_tx0,
+                target_tx1=target_tx1,
+                best_tx0=best_tx0,
+                best_tx1=best_tx1,
+                metrics=metrics,
+                tx0_pos=tx0_pos,
+                tx1_pos=tx1_pos,
+            )
+
+            rows.append(row)
+
+            kept += 1
+            sample_id += 1
+
+            print(
+                f"class {target_class_id:04d}, kept {kept}/{CONFIG['samples_per_class']}: "
+                f"tx0=({int(target_tx0['sector_idx'])}, {int(target_tx0['codebook_idx'])}), "
+                f"tx1=({int(target_tx1['sector_idx'])}, {int(target_tx1['codebook_idx'])}), "
+                f"u1_angle={users['u1_angle_deg']:+6.2f}, "
+                f"u2_angle={users['u2_angle_deg']:+6.2f}, "
+                f"sum_rate={metrics['target_sum_rate_bpshz']:.2f}, "
+                f"best={metrics['target_is_best']}"
+            )
+
+        if kept == 0:
+            print(
+                f"class {target_class_id:04d}: no valid samples after {attempts} attempts"
+            )
+
+    if len(rows) == 0:
+        raise RuntimeError(
+            "No valid samples were generated. Loosen thresholds, reduce jitter constraints, "
+            "or decrease required_rate_min/max."
+        )
+
+    df = pd.DataFrame(rows)
+
+    X, y_sector, y_codebook, feature_cols = make_model_arrays(df)
+
+    df.to_csv(CONFIG["output_csv"], index=False)
+
+    np.savez(
+        CONFIG["output_npz"],
+        X=X,
+        y_sector=y_sector,
+        y_codebook=y_codebook,
+        sector_angles_deg=np.array(CONFIG["sector_angles_deg"], dtype=float),
+        candidate_sector_idx=candidates["sector_idx"].to_numpy(dtype=np.int64),
+        candidate_codebook_idx=candidates["codebook_idx"].to_numpy(dtype=np.int64),
+        candidate_target_angle_deg=candidates["target_angle_deg"].to_numpy(dtype=np.float32),
+    )
+
+    metadata = {
+        "description": "RayNet Dataset Generation V3",
+        "feature_columns": feature_cols,
+        "sector_label_columns": ["tx0_sector_label", "tx1_sector_label"],
+        "codebook_label_columns": ["tx0_codebook_label", "tx1_codebook_label"],
+        "notes": [
+            "Class-first generation",
+            "Two physical TX positions are modeled in Sionna RT.",
+            "Four links are traced per candidate sample: TX0-U1, TX0-U2, TX1-U1, TX1-U2.",
+            "Users are placed in the x-y plane at fixed z; azimuth is measured from +x toward +y.",
+            "Sector index 0 is anchored to boresight.",
+            "Codebook index represents an azimuth refinement around the sector direction.",
+            "Codebook count is configurable and not treated as a fixed hardware primitive.",
+            "Sionna RT provides link/path power; sector/codebook beam scoring is analytical.",
+            "A sample is kept only if the target class passes SINR checks and is near-best.",
+        ],
+        "config": CONFIG,
+    }
+
+    with open(CONFIG["output_metadata"], "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+    print("\nSaved:")
+    print(f"  {CONFIG['output_csv']}")
+    print(f"  {CONFIG['output_npz']}")
+    print(f"  {CONFIG['output_metadata']}")
+    print("\nFeature matrix shape:", X.shape)
+    print("Sector labels shape:", y_sector.shape)
+    print("Codebook labels shape:", y_codebook.shape)
+
+
+if __name__ == "__main__":
+    main()
