@@ -12,3 +12,5 @@ imgui.ini
 #outputs
 .csv
 .npz
+.png
+.json

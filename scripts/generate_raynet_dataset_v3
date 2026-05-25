@@ -26,7 +26,7 @@ CONFIG = {
     "user_distance_max_m": 10.0,
     "user_angle_min_deg": -60.0,
     "user_angle_max_deg": 60.0,
-    "min_user_angular_separation_deg": 8.0,
+    "min_user_angular_separation_deg": 5.0,
 
     "sector_angles_deg": [
         0.0,
@@ -39,16 +39,16 @@ CONFIG = {
         -15.0,
     ],
 
-    "num_codebooks": 1,
-    "refinement_min_deg": -0.0,
-    "refinement_max_deg": 0.0,
+    "num_codebooks": 5, #limiting number of codebooks for now
+    "refinement_min_deg": -6.0,
+    "refinement_max_deg": 6.0,
     "filter_target_angles_to_user_fov": True,
 
     "class_angle_jitter_deg": 4.0,
 
-    "samples_per_class": 1,
-    "max_attempts_per_class": 300,
-    "max_joint_classes": 64,
+    "samples_per_class": 10,
+    "max_attempts_per_class": 3000,
+    "max_joint_classes": None,
 
     "beam_3db_width_deg": 15.0,
     "beam_sidelobe_floor_db": -30.0,
@@ -57,15 +57,15 @@ CONFIG = {
     "bandwidth_hz": 2e9,
     "noise_figure_db": 7.0,
     "temperature_k": 290.0,
-    "tx0_power_dbm": 0.0,
-    "tx1_power_dbm": 0.0,
+    "tx0_power_dbm": 5.0,
+    "tx1_power_dbm": 5.0,
 
     "required_rate_min_bpshz": 1.0,
     "required_rate_max_bpshz": 5.0,
 
-    "min_sinr_db": -3.0,
+    "min_sinr_db": -20.0,
     "require_rate_targets": False,
-    "near_best_margin_bpshz": 0.25,
+    "near_best_margin_bpshz": 0.1, #bpshz 0.1 is 100 Mbps in 2 GHz bandwidth
     "qos_penalty_weight": 2.0,
 
     "max_depth": 1,
