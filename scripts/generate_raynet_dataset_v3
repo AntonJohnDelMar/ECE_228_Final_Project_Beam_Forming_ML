@@ -65,7 +65,7 @@ CONFIG = {
 
     "min_sinr_db": -30.0,
     "require_rate_targets": False,
-    "near_best_margin_bpshz": 0.25,
+    "near_best_margin_bpshz": 0.01,
     "qos_penalty_weight": 2.0,
 
     "max_depth": 1,
