@@ -10,6 +10,7 @@ import pandas as pd
 import sionna.rt
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, PathSolver
 
+BASE_DIR = f"/data4/{os.environ['USER']}/raynet_beamforming_dataset_gen"
 
 CONFIG = {
     "seed": 21,
@@ -75,7 +76,6 @@ CONFIG = {
     "refraction": False,
 
 
-    BASE_DIR = f"/data4/{os.environ['USER']}/raynet_beamforming_dataset_gen"
 
     "output_csv": f"{BASE_DIR}outputs/dataset_8sector_3book_full_100.csv",
     "output_npz": f"{BASE_DIR}outputs/dataset_8sector_3book_full_100.npz",
