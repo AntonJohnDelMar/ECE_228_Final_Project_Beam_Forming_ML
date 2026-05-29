@@ -74,8 +74,11 @@ CONFIG = {
     "diffuse_reflection": False,
     "refraction": False,
 
-    "output_csv": "outputs/dataset_8sector_3book_full_100.csv",
-    "output_npz": "outputs/dataset_8sector_3book_full_100.npz",
+
+    BASE_DIR = f"/data4/{os.environ['USER']}/raynet_beamforming_dataset_gen"
+
+    "output_csv": f"{BASE_DIR}outputs/dataset_8sector_3book_full_100.csv",
+    "output_npz": f"{BASE_DIR}outputs/dataset_8sector_3book_full_100.npz",
     "output_metadata": "outputs/dataset_8sector_3book_full_100.json",
 }
 
@@ -742,7 +745,7 @@ def main():
     print("Sector labels shape:", y_sector.shape)
     print("Codebook labels shape:", y_codebook.shape)
 
-
+#dataset verification
 import pandas as pd
 
 df = pd.read_csv("outputs/dataset_8sector_3book_full_100.csv")
