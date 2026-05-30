@@ -80,9 +80,9 @@ CONFIG = {
     "refraction": False,
 
 
-    "output_csv": f"{BASE_DIR}/outputs/dataset_8sector_3book_full_100.csv",
-    "output_npz": f"{BASE_DIR}/outputs/dataset_8sector_3book_full_100.npz",
-    "output_metadata": f"{BASE_DIR}/outputs/dataset_8sector_3book_full_100_metadata.json",
+    "output_csv": str(OUTPUT_DIR / "dataset_8sector_3book_full_100.csv"),
+    "output_npz": str(OUTPUT_DIR / "dataset_8sector_3book_full_100.npz"),
+    "output_metadata": str(OUTPUT_DIR / "dataset_8sector_3book_full_100_metadata.json"),
 }
 
 def dbm_to_watts(dbm):
