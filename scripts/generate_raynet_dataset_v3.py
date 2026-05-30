@@ -10,7 +10,9 @@ import pandas as pd
 import sionna.rt
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, PathSolver
 
-BASE_DIR = f"/data4/{os.environ['USER']}/raynet_beamforming_dataset_gen"
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_DIR = SCRIPT_DIR.parent
+OUTPUT_DIR = REPO_DIR / "outputs"
 
 CONFIG = {
     "seed": 21,
@@ -578,7 +580,7 @@ def make_row(sample_id, target_class_id, users, links, target_tx0, target_tx1, b
 
 
 def main():
-    os.makedirs(os.path.dirname(CONFIG["output_csv"]), exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     rng = np.random.default_rng(CONFIG["seed"])
 
