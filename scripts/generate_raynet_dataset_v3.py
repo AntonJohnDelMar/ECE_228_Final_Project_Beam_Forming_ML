@@ -51,9 +51,9 @@ CONFIG = {
 
     "class_angle_jitter_deg": 4.0,
 
-    "samples_per_class": 1,
+    "samples_per_class": 100,
     "max_attempts_per_class": 1000,
-    "max_joint_classes": 4, #should be around 576 (3*8*3*8) 8 sectors and 3 codebooks
+    "max_joint_classes": None, #should be around 576 (3*8*3*8) 8 sectors and 3 codebooks
 
     "beam_3db_width_deg": 15.0,
     "beam_sidelobe_floor_db": -30.0,
