@@ -39,6 +39,6 @@ class MLP(nn.Module):
 
         # Predict code book 
         logits_2a = self.classify_book_1(cat_1a); 
-        logits_2b = self.classify_idx_2(cat_1b); 
+        logits_2b = self.classify_book_2(cat_1b); 
 
         return logits_1a, logits_1b, logits_2a, logits_2b; 
