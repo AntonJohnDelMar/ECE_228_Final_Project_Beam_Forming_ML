@@ -44,16 +44,16 @@ CONFIG = {
         -15.0,
     ],
 
-    "num_codebooks": 3, #limiting number of codebooks for now
+    "num_codebooks": 8, #limiting number of codebooks for now
     "refinement_min_deg": -5.0,
     "refinement_max_deg": 5.0,
     "filter_target_angles_to_user_fov": True,
 
     "class_angle_jitter_deg": 4.0,
 
-    "samples_per_class": 10,
+    "samples_per_class": 50,
     "max_attempts_per_class": 1000,
-    "max_joint_classes": None, #should be around  (8*3*3*8) 8 sectors and 3 codebooks
+    "max_joint_classes": None, #should be around  (8*8*8*8) 8 sectors and 8 codebooks
 
     "beam_3db_width_deg": 15.0,
     "beam_sidelobe_floor_db": -30.0,
@@ -80,9 +80,9 @@ CONFIG = {
     "refraction": False,
 
 
-    "output_csv": str(OUTPUT_DIR / "dataset_test_3book_full_10.csv"),
-    "output_npz": str(OUTPUT_DIR / "dataset_test_3book_full_10.npz"),
-    "output_metadata": str(OUTPUT_DIR / "dataset_test_3book_full_10_metadata.json"),
+    "output_csv": str(OUTPUT_DIR / "dataset_8sector_8book_full_50.csv"),
+    "output_npz": str(OUTPUT_DIR / "dataset_8sector_8book_full_50.npz"),
+    "output_metadata": str(OUTPUT_DIR / "dataset_8sector_8book_full_50_metadata.json"),
 }
 
 def dbm_to_watts(dbm):
