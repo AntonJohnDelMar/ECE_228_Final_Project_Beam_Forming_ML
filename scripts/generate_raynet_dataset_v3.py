@@ -51,7 +51,7 @@ CONFIG = {
 
     "class_angle_jitter_deg": 4.0,
 
-    "samples_per_class": 50,
+    "samples_per_class": 100,
     "max_attempts_per_class": 1000,
     "max_joint_classes": None, #should be around  (8*8*8*8) 8 sectors and 8 codebooks
 
@@ -80,9 +80,9 @@ CONFIG = {
     "refraction": False,
 
 
-    "output_csv": str(OUTPUT_DIR / "dataset_8sector_5book_full_50.csv"),
-    "output_npz": str(OUTPUT_DIR / "dataset_8sector_5book_full_50.npz"),
-    "output_metadata": str(OUTPUT_DIR / "dataset_8sector_5book_full_50_metadata.json"),
+    "output_csv": str(OUTPUT_DIR / "dataset_8sector_5book_full_100.csv"),
+    "output_npz": str(OUTPUT_DIR / "dataset_8sector_5book_full_100.npz"),
+    "output_metadata": str(OUTPUT_DIR / "dataset_8sector_5book_full_100_metadata.json"),
 }
 
 def dbm_to_watts(dbm):
