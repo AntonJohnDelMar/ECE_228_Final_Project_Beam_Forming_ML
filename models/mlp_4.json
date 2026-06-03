@@ -1,0 +1,13 @@
+{
+    "epochs": 100,
+    "batch_size": 64,
+    "learning_rate": 0.001,
+    "architecture": {
+        "input_dim": 8,
+        "h1_dim": 128,
+        "h2_dim": 128,
+        "h3_dim": 64,
+        "out_1": 8,
+        "out_2": 5
+    }
+}

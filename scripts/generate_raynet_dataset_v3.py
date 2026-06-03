@@ -4,8 +4,8 @@ import json
 import os
 
 import mitsuba as mi
-# mi.set_variant("cuda_ad_mono_polarized")
-mi.set_variant("llvm_ad_rgb"); 
+mi.set_variant("cuda_ad_mono_polarized")
+# mi.set_variant("llvm_ad_rgb"); 
 
 import numpy as np
 import pandas as pd
