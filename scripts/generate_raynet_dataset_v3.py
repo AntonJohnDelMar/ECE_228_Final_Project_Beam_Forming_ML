@@ -45,7 +45,7 @@ CONFIG = {
         -15.0,
     ],
 
-    "num_codebooks": 5, #limiting number of codebooks for now
+    "num_codebooks": 3, #limiting number of codebooks for now
     "refinement_min_deg": -5.0,
     "refinement_max_deg": 5.0,
     "filter_target_angles_to_user_fov": True,
