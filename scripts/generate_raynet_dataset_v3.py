@@ -373,22 +373,22 @@ def beam_gain_linear(user_angle_deg, target_angles_deg):
     return gain
 
 
-def score_all_joint_configs(users, links, candidates):
-    target_angles = candidates["target_angle_deg"].to_numpy()
+def score_all_joint_configs(users, links, candidates): 
+    target_angles = candidates["target_angle_deg"].to_numpy() 
 
-    p_tx0 = dbm_to_watts(CONFIG["tx0_power_dbm"])
-    p_tx1 = dbm_to_watts(CONFIG["tx1_power_dbm"])
+    p_tx0 = dbm_to_watts(CONFIG["tx0_power_dbm"]) 
+    p_tx1 = dbm_to_watts(CONFIG["tx1_power_dbm"]) 
 
-    gain_tx0_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles)
-    gain_tx0_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles)
+    gain_tx0_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles) 
+    gain_tx0_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles) 
 
-    gain_tx1_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles)
-    gain_tx1_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles)
+    gain_tx1_to_u1 = beam_gain_linear(users["u1_angle_deg"], target_angles) 
+    gain_tx1_to_u2 = beam_gain_linear(users["u2_angle_deg"], target_angles) 
 
-    h11 = links["h11"]["power_linear"]
-    h12 = links["h12"]["power_linear"]
-    h21 = links["h21"]["power_linear"]
-    h22 = links["h22"]["power_linear"]
+    h11 = links["h11"]["power_linear"] 
+    h12 = links["h12"]["power_linear"] 
+    h21 = links["h21"]["power_linear"] 
+    h22 = links["h22"]["power_linear"] 
 
     noise = thermal_noise_watts()
 
@@ -427,6 +427,110 @@ def score_all_joint_configs(users, links, candidates):
         "best_score": float(score[best_tx0_idx, best_tx1_idx]),
     }
 
+
+def score_all_joint_configs_loop(users, links, candidates):
+    target_angles = candidates["target_angle_deg"].to_numpy()
+
+    p_tx0 = dbm_to_watts(CONFIG["tx0_power_dbm"])
+    p_tx1 = dbm_to_watts(CONFIG["tx1_power_dbm"])
+
+    h11 = links["h11"]["power_linear"]
+    h12 = links["h12"]["power_linear"]
+    h21 = links["h21"]["power_linear"]
+    h22 = links["h22"]["power_linear"]
+
+    noise = thermal_noise_watts()
+
+    n_candidates = len(target_angles)
+
+    sinr_u1 = np.zeros((n_candidates, n_candidates))
+    sinr_u2 = np.zeros((n_candidates, n_candidates))
+
+    rate_u1 = np.zeros((n_candidates, n_candidates))
+    rate_u2 = np.zeros((n_candidates, n_candidates))
+
+    score = np.zeros((n_candidates, n_candidates))
+
+    best_score = -np.inf
+    best_tx0_idx = 0
+    best_tx1_idx = 0
+
+    for tx0_idx in range(n_candidates):
+
+        gain_tx0_to_u1 = beam_gain_linear(
+            users["u1_angle_deg"],
+            target_angles[tx0_idx]
+        )
+
+        gain_tx0_to_u2 = beam_gain_linear(
+            users["u2_angle_deg"],
+            target_angles[tx0_idx]
+        )
+
+        for tx1_idx in range(n_candidates):
+
+            gain_tx1_to_u1 = beam_gain_linear(
+                users["u1_angle_deg"],
+                target_angles[tx1_idx]
+            )
+
+            gain_tx1_to_u2 = beam_gain_linear(
+                users["u2_angle_deg"],
+                target_angles[tx1_idx]
+            )
+
+            desired_u1 = p_tx0 * h11 * gain_tx0_to_u1
+            interference_u1 = p_tx1 * h21 * gain_tx1_to_u1
+
+            desired_u2 = p_tx1 * h22 * gain_tx1_to_u2
+            interference_u2 = p_tx0 * h12 * gain_tx0_to_u2
+
+            sinr1 = desired_u1 / (interference_u1 + noise)
+            sinr2 = desired_u2 / (interference_u2 + noise)
+
+            rate1 = np.log2(1.0 + sinr1)
+            rate2 = np.log2(1.0 + sinr2)
+
+            deficit1 = max(
+                0.0,
+                users["u1_required_rate_bpshz"] - rate1
+            )
+
+            deficit2 = max(
+                0.0,
+                users["u2_required_rate_bpshz"] - rate2
+            )
+
+            s = (
+                rate1
+                + rate2
+                - CONFIG["qos_penalty_weight"]
+                * (deficit1**2 + deficit2**2)
+            )
+
+            sinr_u1[tx0_idx, tx1_idx] = sinr1
+            sinr_u2[tx0_idx, tx1_idx] = sinr2
+
+            rate_u1[tx0_idx, tx1_idx] = rate1
+            rate_u2[tx0_idx, tx1_idx] = rate2
+
+            score[tx0_idx, tx1_idx] = s
+
+            if s > best_score:
+                best_score = s
+                best_tx0_idx = tx0_idx
+                best_tx1_idx = tx1_idx
+
+    return {
+        "score": score,
+        "sinr_u1": sinr_u1,
+        "sinr_u2": sinr_u2,
+        "rate_u1": rate_u1,
+        "rate_u2": rate_u2,
+        "best_tx0_idx": best_tx0_idx,
+        "best_tx1_idx": best_tx1_idx,
+        "best_score": float(best_score),
+    }
 
 def target_class_passes(score_data, users, target_tx0_idx, target_tx1_idx):
     target_score = float(score_data["score"][target_tx0_idx, target_tx1_idx])
